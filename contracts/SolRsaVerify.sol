@@ -92,7 +92,8 @@ library SolRsaVerify {
         unchecked{
         
       	//require(_m.length >= sha256Prefix.length+_sha256.length+11);
-        require(_m.length >= 19+_sha256.length+11); //sha256Prefix.length no longer returns the right number, plus, hardcoding saves gas. same for all the other replacements lower down
+        //require(_m.length >= 19+_sha256.length+11); //sha256Prefix.length no longer returns the right number, plus, hardcoding saves gas. same for all the other replacements lower down
+        require(_m.length >= 30+_sha256.length); //reduced unnecessary adding to save gas, left where the numbers are derived from in comments for future reference
 
         uint i;
 
@@ -114,28 +115,40 @@ library SolRsaVerify {
         //  }
         
         //uint paddingLen = decipherlen - 3 - sha256Prefix.length - 32;
-        uint paddingLen = decipherlen - 3 - 19 - 32; //will fix all these unnecessary add/sub operations in a later commit
+        //uint paddingLen = decipherlen - 3 - 19 - 32;
+        //uint paddingLen = decipherlen - 54;
+        uint paddingLen = decipherlen - 52; //oh, one more savings here, paddingLen can be shifted by 2 to save on some extra adding in for loops. again will leave originals in comments for easy reference, I found it hard to figure out where these numbers came from looking back at my code
 
         if (decipher[0] != 0 || uint8(decipher[1]) != 1) {
             return 1;
         }
-        for (i = 2;i<2+paddingLen;i++) {
+        //for (i = 2;i<2+paddingLen;i++) {
+        for (i = 2;i<paddingLen;++i) {
             if (decipher[i] != 0xff) {
                 return 2;
             }
         }
-        if (decipher[2+paddingLen] != 0) {
+        //if (decipher[2+paddingLen] != 0) {
+        if (decipher[paddingLen] != 0) {
             return 3;
         }
+        ++paddingLen; //ok this is a weird hack, but it saves gas: offsetting paddinglen before these for loops to save more repeated adding in for loops
         //for (i = 0;i<sha256Prefix.length;i++) {
-        for (i = 0;i<19;i++) {
-            if (decipher[3+paddingLen+i]!=sha256Prefix[i]) {
+        for (i = 0;i<19;++i) {
+            //if (decipher[3+paddingLen+i]!=sha256Prefix[i]) {
+            //if (decipher[1+paddingLen+i]!=sha256Prefix[i]) { //shift paddinglen by 2
+            if (decipher[paddingLen+i]!=sha256Prefix[i]) { // ++paddinglen
                 return 4;
             }
         }
-        for (i = 0;i<_sha256.length;i++) {
+        paddingLen+=19;
+        for (i = 0;i<_sha256.length;++i) {
             //if (decipher[3+paddingLen+sha256Prefix.length+i]!=_sha256[i]) {
-            if (decipher[3+paddingLen+19+i]!=_sha256[i]) {
+            //if (decipher[3+paddingLen+19+i]!=_sha256[i]) {
+            //if (decipher[22+paddingLen+i]!=_sha256[i]) {
+            //if (decipher[20+paddingLen+i]!=_sha256[i]) { //shift paddinglen by 2
+            if (decipher[paddingLen+i]!=_sha256[i]) { // ++paddinglen and then +=19
+                //yes, I am leaving all these commented. I'm modifying this later to do other stuff and I had a hard time tracing why the numbers were what they were set to, so it's helpful
                 return 5;
             }
         }
