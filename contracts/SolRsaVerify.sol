@@ -25,6 +25,7 @@ pragma solidity ^0.8.9;
 library SolRsaVerify {
 
     function memcpy(uint _dest, uint _src, uint _len) pure internal {
+        unchecked {
         // Copy word-length chunks while possible
         for ( ;_len >= 32; _len -= 32) {
             assembly {
@@ -35,7 +36,6 @@ library SolRsaVerify {
         }
 
         // Copy remaining bytes
-        unchecked {
             uint mask = 256 ** (32 - _len) - 1;
             assembly {
                 let srcpart := and(mload(_src), not(mask))
@@ -49,6 +49,7 @@ library SolRsaVerify {
     function join(
 	bytes memory _s, bytes memory _e, bytes memory _m
     ) pure internal returns (bytes memory) {
+        unchecked{
         uint inputLen = 0x60+_s.length+_e.length+_m.length;
         
         uint slen = _s.length;
@@ -74,6 +75,7 @@ library SolRsaVerify {
         memcpy(inputPtr+0x60+_s.length+_e.length,mptr,_m.length);
 
         return input;
+        }
     }
     
     /** @dev Verifies a PKCSv1.5 SHA256 signature
@@ -87,7 +89,7 @@ library SolRsaVerify {
         bytes32 _sha256,
         bytes memory _s, bytes memory _e, bytes memory _m
     ) public view returns (uint) {
-        
+        unchecked{
         uint8[19] memory sha256Prefix = [
             0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20
         ];
@@ -136,7 +138,7 @@ library SolRsaVerify {
                 return 5;
             }
         }
-
+        }
         return 0;
     }
 
