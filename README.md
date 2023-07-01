@@ -2,6 +2,8 @@
 
 [![Build Status](https://github.com/adria0/SolRsaVerify/workflows/Truffle%20CI/badge.svg)](https://github.com/adria0/SolRsaVerify/actions?query=workflow%3A%22Truffle+CI%22) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
+ekorus's fork of SolRsaVerify, did some gas optimization. on the FIPS test vectors it saves 22.6% gas on average
+
 Verification of RSA Sha256 Pkcs1.5 Signatures
 
 This kind of signatures (with PSS) are standard in CryptoAPIs when generating RSA signatures.
