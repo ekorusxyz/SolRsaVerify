@@ -15,11 +15,11 @@ pragma solidity ^0.8.9;
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-    
+
     Checked results with FIPS test vectors
     https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/dss/186-2rsatestvectors.zip
     file SigVer15_186-3.rsp
-    
+
  */
 
 library SolRsaVerify {
@@ -45,79 +45,67 @@ library SolRsaVerify {
         }
     }
 
-    
-    function join(
-	bytes memory _s, bytes memory _e, bytes memory _m
-    ) pure internal returns (bytes memory) {
-        unchecked{
-        uint inputLen = 0x60+_s.length+_e.length+_m.length;
-        
-        uint slen = _s.length;
-        uint elen = _e.length;
-        uint mlen = _m.length;
-        uint sptr;
-        uint eptr;
-        uint mptr;
-        uint inputPtr;
-        
-        bytes memory input = new bytes(inputLen);
-        assembly {
-            sptr := add(_s,0x20)
-            eptr := add(_e,0x20)
-            mptr := add(_m,0x20)
-            mstore(add(input,0x20),slen)
-            mstore(add(input,0x40),elen)
-            mstore(add(input,0x60),mlen)
-            inputPtr := add(input,0x20)
-        }
-        memcpy(inputPtr+0x60,sptr,_s.length);        
-        memcpy(inputPtr+0x60+_s.length,eptr,_e.length);        
-        memcpy(inputPtr+0x60+_s.length+_e.length,mptr,_m.length);
-
-        return input;
-        }
-    }
-    
     /** @dev Verifies a PKCSv1.5 SHA256 signature
       * @param _sha256 is the sha256 of the data
       * @param _s is the signature
       * @param _e is the exponent
       * @param _m is the modulus
       * @return 0 if success, >0 otherwise
-    */    
+    */
     function pkcs1Sha256Verify(
         bytes32 _sha256,
         bytes memory _s, bytes memory _e, bytes memory _m
     ) public view returns (uint) {
         unchecked{
-        
+
+        uint slen = _s.length;
+        uint elen = _e.length;
+        uint mlen = _m.length;
+
       	//require(_m.length >= sha256Prefix.length+_sha256.length+11);
         //require(_m.length >= 19+_sha256.length+11); //sha256Prefix.length no longer returns the right number, plus, hardcoding saves gas. same for all the other replacements lower down
-        require(_m.length >= 30+_sha256.length); //reduced unnecessary adding to save gas, left where the numbers are derived from in comments for future reference
+        //require(mlen >= 30+_sha256.length); //reduced unnecessary adding to save gas, left where the numbers are derived from in comments for future reference
+        require(mlen >= 62); //wait, _sha256 is forced to be a bytes32, no reason to check its length
+        /// decipher
 
+        uint inputLen = 0x60+slen+elen+mlen;
+        bytes memory input = new bytes(inputLen);
+        { //stack too deep if i don't scope
+            uint sptr;
+            uint eptr;
+            uint mptr;
+            uint inputPtr;
+            assembly {
+                sptr := add(_s,0x20)
+                eptr := add(_e,0x20)
+                mptr := add(_m,0x20)
+                mstore(add(input,0x20),slen)
+                mstore(add(input,0x40),elen)
+                mstore(add(input,0x60),mlen)
+                inputPtr := add(input,0x20)
+            }
+            memcpy(inputPtr+0x60,sptr,slen);
+            memcpy(inputPtr+0x60+slen,eptr,elen);
+            //memcpy(inputPtr+0x60+slen+elen,mptr,mlen);
+            memcpy(inputPtr+inputLen-mlen,mptr,mlen);
+        }
+        bytes memory decipher = new bytes(mlen);
+        assembly {
+            pop(staticcall(sub(gas(), 2000), 5, add(input,0x20), inputLen, add(decipher,0x20), mlen))
+        }
         uint i;
 
-        /// decipher
-        bytes memory input = join(_s,_e,_m);
-        uint inputlen = input.length;
-
-        uint decipherlen = _m.length;
-        bytes memory decipher = new bytes(decipherlen);
-        assembly {
-            pop(staticcall(sub(gas(), 2000), 5, add(input,0x20), inputlen, add(decipher,0x20), decipherlen))
-	}
-        
         /// 0x00 || 0x01 || PS || 0x00 || DigestInfo
         /// PS is padding filled with 0xff
         //  DigestInfo ::= SEQUENCE {
         //     digestAlgorithm AlgorithmIdentifier,
         //     digest OCTET STRING
         //  }
-        
+
         //uint paddingLen = decipherlen - 3 - sha256Prefix.length - 32;
         //uint paddingLen = decipherlen - 3 - 19 - 32;
         //uint paddingLen = decipherlen - 54;
-        uint paddingLen = decipherlen - 52; //oh, one more savings here, paddingLen can be shifted by 2 to save on some extra adding in for loops. again will leave originals in comments for easy reference, I found it hard to figure out where these numbers came from looking back at my code
+        uint paddingLen = mlen - 52; //oh, one more savings here, paddingLen can be shifted by 2 to save on some extra adding in for loops. again will leave originals in comments for easy reference, I found it hard to figure out where these numbers came from looking back at my code
 
         if (decipher[0] != 0 || uint8(decipher[1]) != 1) {
             return 1;
@@ -142,7 +130,8 @@ library SolRsaVerify {
             }
         }
         paddingLen+=19;
-        for (i = 0;i<_sha256.length;++i) {
+        //for (i = 0;i<_sha256.length;++i) {
+        for (i = 0;i<32;++i) {
             //if (decipher[3+paddingLen+sha256Prefix.length+i]!=_sha256[i]) {
             //if (decipher[3+paddingLen+19+i]!=_sha256[i]) {
             //if (decipher[22+paddingLen+i]!=_sha256[i]) {
@@ -162,9 +151,9 @@ library SolRsaVerify {
       * @param _e is the exponent
       * @param _m is the modulus
       * @return 0 if success, >0 otherwise
-    */    
+    */
     function pkcs1Sha256VerifyRaw(
-        bytes memory _data, 
+        bytes memory _data,
         bytes memory _s, bytes memory _e, bytes memory _m
     ) public view returns (uint) {
         return pkcs1Sha256Verify(sha256(_data),_s,_e,_m);
