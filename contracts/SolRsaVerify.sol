@@ -23,7 +23,7 @@ pragma solidity ^0.8.9;
  */
 
 library SolRsaVerify {
-
+    bytes19 constant sha256Prefix = 0x3031300d060960864801650304020105000420; //changing sha256Prefix to hardcoded to save on gas, no need to have this as memory
     function memcpy(uint _dest, uint _src, uint _len) pure internal {
         unchecked {
         // Copy word-length chunks while possible
@@ -90,11 +90,9 @@ library SolRsaVerify {
         bytes memory _s, bytes memory _e, bytes memory _m
     ) public view returns (uint) {
         unchecked{
-        uint8[19] memory sha256Prefix = [
-            0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20
-        ];
         
-      	require(_m.length >= sha256Prefix.length+_sha256.length+11);
+      	//require(_m.length >= sha256Prefix.length+_sha256.length+11);
+        require(_m.length >= 19+_sha256.length+11); //sha256Prefix.length no longer returns the right number, plus, hardcoding saves gas. same for all the other replacements lower down
 
         uint i;
 
@@ -115,8 +113,9 @@ library SolRsaVerify {
         //     digest OCTET STRING
         //  }
         
-        uint paddingLen = decipherlen - 3 - sha256Prefix.length - 32;
-        
+        //uint paddingLen = decipherlen - 3 - sha256Prefix.length - 32;
+        uint paddingLen = decipherlen - 3 - 19 - 32; //will fix all these unnecessary add/sub operations in a later commit
+
         if (decipher[0] != 0 || uint8(decipher[1]) != 1) {
             return 1;
         }
@@ -128,13 +127,15 @@ library SolRsaVerify {
         if (decipher[2+paddingLen] != 0) {
             return 3;
         }
-        for (i = 0;i<sha256Prefix.length;i++) {
-            if (uint8(decipher[3+paddingLen+i])!=sha256Prefix[i]) {
+        //for (i = 0;i<sha256Prefix.length;i++) {
+        for (i = 0;i<19;i++) {
+            if (decipher[3+paddingLen+i]!=sha256Prefix[i]) {
                 return 4;
             }
         }
         for (i = 0;i<_sha256.length;i++) {
-            if (decipher[3+paddingLen+sha256Prefix.length+i]!=_sha256[i]) {
+            //if (decipher[3+paddingLen+sha256Prefix.length+i]!=_sha256[i]) {
+            if (decipher[3+paddingLen+19+i]!=_sha256[i]) {
                 return 5;
             }
         }
